@@ -410,7 +410,7 @@ if (isset($_POST['export_excel_manage'])) {
         ob_end_clean(); // Clean the previous buffer if any
     
         // Include the FPDF library
-        require_once plugin_dir_path(__FILE__) .  '/fpdfgit init/fpdf.php';
+        require_once plugin_dir_path(__FILE__) .  '/fpdf/fpdf.php';
     
         // Check if logs are empty
         if (empty($logs)) {
