@@ -3643,62 +3643,93 @@ add_action('woocommerce_thankyou', 'update_points_redemption_fee_on_order_receiv
 function modify_thankyou_order_received_text($text, $order)
 {
     if (is_user_logged_in()) {
-        $cart_total = $order->get_total();
+        // Check if the points system is enabled
+        $point_and_reward = get_option('point_and_reward', 0);
+        if (!$point_and_reward) {
+            return 'Thank you. Your order has been received.';
+        }
+
+        // Retrieve the saved order status
+        $saved_status = get_option('assign_order_status', 'wc-completed');
+
         // Retrieve the conversion rates
         $point_conversation_rate_point = get_option('point_conversation_rate_point', '');
         $point_conversation_rate_taka = get_option('point_conversation_rate_taka', '');
 
-        // Get the assign point type
-    $assign_point_type = get_option('assign_point_type', 'all_products');
-        // Calculate the points earned based on the cart total and conversion rates
-        $points_earned = 0;
-         // Check the assigned point type and calculate points accordingly
-    switch ($assign_point_type) {
-        case 'all_products':
-            // Calculate points for all products
-            $points_earned = round(($order->get_total() * floatval($point_conversation_rate_point)) / floatval($point_conversation_rate_taka));
-            break;
+        // Initialize total points earned
+        $points = 0;
 
-        case 'category':
-            // Calculate points based on assigned categories
-            $categories = get_option('assign_product_category', array());
-            foreach ($order->get_items() as $item) {
-                $product_id = $item->get_product_id();
-                $product_categories = wp_get_post_terms($product_id, 'product_cat', array('fields' => 'ids'));
-                if (array_intersect($categories, $product_categories)) {
-                    $points_earned += round(($item->get_total() * floatval($point_conversation_rate_point)) / floatval($point_conversation_rate_taka));
-                }
-            }
-            break;
+        // Loop through the order items to calculate points
+        foreach ($order->get_items() as $item_id => $item) {
+            $product_id = $item->get_product_id();
+            $product = wc_get_product($product_id);
 
-        case 'specific_products':
-            // Calculate points based on specific products
-            $specific_products = get_option('assign_specific_products', array());
-            foreach ($order->get_items() as $item) {
-                if (in_array($item->get_product_id(), $specific_products)) {
-                    $points_earned += round(($item->get_total() * floatval($point_conversation_rate_point)) / floatval($point_conversation_rate_taka));
+            // Check if the product exists and is purchasable
+            if ($product && $product->is_purchasable()) {
+                // Get the assign point type
+                $assign_point_type = get_option('assign_point_type', 'all_products');
+
+                // Check if the product is excluded
+                $excluded_products = get_option('exclude_specific_products', array());
+                if (in_array($product_id, $excluded_products)) {
+                    continue; // Skip the excluded product
                 }
+
+                // Handle point assignment based on the configured method
+                if ($assign_point_type !== 'all_products') {
+                    if ($assign_point_type === 'category') {
+                        $categories = get_option('assign_product_category', array());
+                        $product_categories = wp_get_post_terms($product_id, 'product_cat');
+                        $category_match = false;
+                        foreach ($product_categories as $category) {
+                            if (in_array($category->term_id, $categories)) {
+                                $category_match = true;
+                                break;
+                            }
+                        }
+                        if (!$category_match) {
+                            continue; // Skip if not in the assigned category
+                        }
+                    } elseif ($assign_point_type === 'specific_products') {
+                        $specific_products = get_option('assign_specific_products', array());
+                        if (!in_array($product_id, $specific_products)) {
+                            continue; // Skip if not in the specific products
+                        }
+                    }
+                }
+
+                // Calculate points earned for the product based on its price
+                $product_price = floatval($item->get_total()); // Total price for the quantity
+                $quantity = $item->get_quantity();
+                $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
+                $points += $points_earned * $quantity;
             }
-            break;
-    }
-        // Customize the thank you text here
-        if($points_earned>0){
-            $modified_text = 'Thank you. Your order has been received. You will earn <strong>' . $points_earned . '</strong> points after Completing this order.';
-        }else{
-            $modified_text = 'Thank you. Your order has been received.'; 
         }
-        
+
+        // Customize the thank you text based on saved order status
+        if ($points > 0) {
+            if ($saved_status === 'wc-completed') {
+                $modified_text = 'Thank you. Your order has been received. You will earn <strong>' . $points . '</strong> points after completing this order.';
+            } elseif ($saved_status === 'wc-processing') {
+                $modified_text = 'Thank you. Your order has been received. You have earned <strong>' . $points . '</strong> points from this order.';
+            } else {
+                $modified_text = 'Thank you. Your order has been received.';
+            }
+        } else {
+            $modified_text = 'Thank you. Your order has been received.';
+        }
+
         return $modified_text;
     } else {
-        $modified_text = 'Thank you. Your order has been received.';
-        return $modified_text;
+        return 'Thank you. Your order has been received.';
     }
-
 }
+
 $point_and_reward = get_option('point_and_reward', 0);
 if ($point_and_reward) {
     add_filter('woocommerce_thankyou_order_received_text', 'modify_thankyou_order_received_text', 10, 2);
 }
+
 
 
 
