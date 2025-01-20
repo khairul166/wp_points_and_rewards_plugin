@@ -1753,6 +1753,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 $selected_categories = isset($_POST['assign_product_category']) ? $_POST['assign_product_category'] : array();
                 $assign_specific_products = isset($_POST['assign_specific_products']) ? $_POST['assign_specific_products'] : array();
                 $exclude_specific_products = isset($_POST['exclude_specific_products']) ? $_POST['exclude_specific_products'] : array();
+                $assign_order_status = isset($_POST['assign_order_status']) ? sanitize_text_field($_POST['assign_order_status']) : 'wc-completed';
                 
                 update_option('point_and_reward', $point_and_reward);
                 update_option('point_conversation_rate_point', $point_conversation_rate_point);
@@ -1777,6 +1778,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 update_option('assign_product_category', $selected_categories);
                 update_option('assign_specific_products', $assign_specific_products);
                 update_option('exclude_specific_products', $exclude_specific_products);
+                update_option('assign_order_status', $assign_order_status);
 
                 //echo '<div class="notice notice-success"><p><strong>Point settings saved.</strong></p></div>';
                 echo '<div class="notice notice-success settings-error is-dismissible"><p><strong>Point settings saved.</strong></p></div>';
@@ -1805,6 +1807,7 @@ document.addEventListener('DOMContentLoaded', function() {
             $selected_categories = get_option('assign_product_category', null);
             $assign_specific_products = get_option('assign_specific_products', null);
             $exclude_specific_products = get_option('exclude_specific_products', null);
+            $assign_order_status = get_option('assign_order_status', 'wc-completed');
 
 
             ?>
@@ -1900,14 +1903,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                                             'limit' => -1,
                                                         ));
                                                         $saved_products = get_option('exclude_specific_products', array());
-if (!is_array($saved_products)) {
-    $saved_products = array(); // Ensure it's always an array
-}
+                                                        if (!is_array($saved_products)) {
+                                                            $saved_products = array(); // Ensure it's always an array
+                                                        }
 
-foreach ($products as $product) {
-    $selected = in_array($product->get_id(), $saved_products) ? 'selected' : '';
-    echo '<option value="' . $product->get_id() . '" ' . $selected . '>' . $product->get_name() . '</option>';
-}     
+                                                        foreach ($products as $product) {
+                                                            $selected = in_array($product->get_id(), $saved_products) ? 'selected' : '';
+                                                            echo '<option value="' . $product->get_id() . '" ' . $selected . '>' . $product->get_name() . '</option>';
+                                                        }     
                                                     ?>
                                                     </select>
                                                 </div>
@@ -1935,6 +1938,36 @@ foreach ($products as $product) {
                                                     </select>
                                                 </div>
 
+                                                <div class="left-width-div">
+                                                    <label for="assign_order_status">Select order status to assign points:</label>
+                                                    <span class="custom-tooltip" tabindex="0" aria-label="Select order status to assign points">
+                                                        <span class="tooltip-icon">?</span>
+                                                    </span>
+                                                </div>
+                                                <div class="right-width-div">
+                                                    <select id="assign_order_status" name="assign_order_status">
+                                                        <?php
+                                                        // Get all WooCommerce order statuses
+                                                        $order_statuses = wc_get_order_statuses();
+
+                                                        // Retrieve saved order status, default to 'wc-completed' if none is set
+                                                        $saved_status = get_option('assign_order_status', 'wc-completed');
+
+                                                        // Loop through order statuses and generate options
+                                                        foreach ($order_statuses as $status_key => $status_name) {
+                                                            $selected = ($status_key === $saved_status) ? 'selected' : '';
+                                                            echo '<option value="' . esc_attr($status_key) . '" ' . $selected . '>' . esc_html($status_name) . '</option>';
+                                                        }
+                                                        ?>
+                                                    </select>
+                                                </div>
+
+
+
+<!-- ============= -->
+
+
+<!-- ========================== -->
 
                                                 
                                         </div>
@@ -2493,8 +2526,25 @@ function is_product_eligible_for_points($product_id) {
     }
 }
 
+// Dynamically add WooCommerce order status hook
+function register_dynamic_order_status_hook() {
+    // Retrieve the saved order status from the database, default to 'wc-completed'
+    $saved_status = get_option('assign_order_status', 'wc-completed');
 
-add_action('woocommerce_order_status_processing', 'handle_points_for_purchase');
+    // Remove the 'wc-' prefix for compatibility with WooCommerce hooks
+    $status_hook = str_replace('wc-', '', $saved_status);
+
+    // Dynamically add the corresponding WooCommerce hook
+    add_action("woocommerce_order_status_{$status_hook}", 'handle_points_for_purchase');
+}
+
+// Hook into WordPress initialization
+add_action('init', 'register_dynamic_order_status_hook');
+
+
+add_action("woocommerce_order_status_{$status_hook}", 'handle_points_for_purchase');
+
+//add_action('woocommerce_order_status_processing', 'handle_points_for_purchase');
 /**
  * Function to handle points calculation and saving after a purchase
  *
