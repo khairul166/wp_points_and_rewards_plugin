@@ -3261,44 +3261,64 @@ add_filter('woocommerce_get_order_item_totals', 'add_custom_order_totals_row', 3
 
 
 function add_custom_order_totals_row($points_total, $order, $tax_display) {
+    // Check if the points system is enabled
+    $point_and_reward = get_option('point_and_reward', 0);
+    if (!$point_and_reward) {
+        return $points_total;
+    }
+
+    // Retrieve the conversion rates
     $point_conversation_rate_point = get_option('point_conversation_rate_point', '');
     $point_conversation_rate_taka = get_option('point_conversation_rate_taka', '');
-    
-    // Get the assign point type
-    $assign_point_type = get_option('assign_point_type', 'all_products');
-    
+
     // Initialize points variable
     $points = 0;
 
-    // Check the assigned point type and calculate points accordingly
-    switch ($assign_point_type) {
-        case 'all_products':
-            // Calculate points for all products
-            $points = round(($order->get_total() * floatval($point_conversation_rate_point)) / floatval($point_conversation_rate_taka));
-            break;
+    // Loop through the order items to calculate points
+    foreach ($order->get_items() as $item_id => $item) {
+        $product_id = $item->get_product_id();
+        $product = wc_get_product($product_id);
 
-        case 'category':
-            // Calculate points based on assigned categories
-            // You may need to implement your logic to check if any products belong to the assigned categories
-            $categories = get_option('assign_product_category', array());
-            foreach ($order->get_items() as $item) {
-                $product_id = $item->get_product_id();
-                $product_categories = wp_get_post_terms($product_id, 'product_cat', array('fields' => 'ids'));
-                if (array_intersect($categories, $product_categories)) {
-                    $points += round(($item->get_total() * floatval($point_conversation_rate_point)) / floatval($point_conversation_rate_taka));
+        // Check if the product exists and is purchasable
+        if ($product && $product->is_purchasable()) {
+            // Get the assign point type
+            $assign_point_type = get_option('assign_point_type', 'all_products');
+
+            // Check if the product is excluded
+            $excluded_products = get_option('exclude_specific_products', array());
+            if (in_array($product_id, $excluded_products)) {
+                continue; // Skip the excluded product
+            }
+
+            // Handle point assignment based on the configured method
+            if ($assign_point_type !== 'all_products') {
+                if ($assign_point_type === 'category') {
+                    $categories = get_option('assign_product_category', array());
+                    $product_categories = wp_get_post_terms($product_id, 'product_cat');
+                    $category_match = false;
+                    foreach ($product_categories as $category) {
+                        if (in_array($category->term_id, $categories)) {
+                            $category_match = true;
+                            break;
+                        }
+                    }
+                    if (!$category_match) {
+                        continue; // Skip if not in the assigned category
+                    }
+                } elseif ($assign_point_type === 'specific_products') {
+                    $specific_products = get_option('assign_specific_products', array());
+                    if (!in_array($product_id, $specific_products)) {
+                        continue; // Skip if not in the specific products
+                    }
                 }
             }
-            break;
 
-        case 'specific_products':
-            // Calculate points based on specific products
-            $specific_products = get_option('assign_specific_products', array());
-            foreach ($order->get_items() as $item) {
-                if (in_array($item->get_product_id(), $specific_products)) {
-                    $points += round(($item->get_total() * floatval($point_conversation_rate_point)) / floatval($point_conversation_rate_taka));
-                }
-            }
-            break;
+            // Calculate points earned for the product based on its price
+            $product_price = floatval($item->get_total()); // Total price for the quantity
+            $quantity = $item->get_quantity();
+            $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
+            $points += $points_earned * $quantity;
+        }
     }
 
     // Only display points if greater than 0
@@ -3311,6 +3331,7 @@ function add_custom_order_totals_row($points_total, $order, $tax_display) {
 
     return $points_total;
 }
+
 
 
 
