@@ -1806,6 +1806,7 @@ document.addEventListener('DOMContentLoaded', function() {
             $assign_specific_products = get_option('assign_specific_products', null);
             $exclude_specific_products = get_option('exclude_specific_products', null);
 
+
             ?>
 
                         <div id="point-settings" class="wrap">
@@ -1899,10 +1900,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                                             'limit' => -1,
                                                         ));
                                                         $saved_products = get_option('exclude_specific_products', array());
-                                                        foreach ($products as $product) {
-                                                            $selected = in_array($product->get_id(), $saved_products) ? 'selected' : '';
-                                                            echo '<option value="'.$product->get_id().'" '.$selected.'>'.$product->get_name().'</option>';
-                                                        }      
+if (!is_array($saved_products)) {
+    $saved_products = array(); // Ensure it's always an array
+}
+
+foreach ($products as $product) {
+    $selected = in_array($product->get_id(), $saved_products) ? 'selected' : '';
+    echo '<option value="' . $product->get_id() . '" ' . $selected . '>' . $product->get_name() . '</option>';
+}     
                                                     ?>
                                                     </select>
                                                 </div>
@@ -1929,6 +1934,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                                     ?>
                                                     </select>
                                                 </div>
+
+
+                                                
                                         </div>
 
 
@@ -2485,57 +2493,6 @@ function is_product_eligible_for_points($product_id) {
     }
 }
 
-//add_action('woocommerce_order_status_completed', 'handle_points_for_purchase');
-// /**
-//  * Function to handle points calculation and saving after a purchase
-//  *
-//  * @param int $order_id The ID of the order
-//  */
-// function handle_points_for_purchase($order_id) {
-//     $point_and_reward = get_option('point_and_reward', 0);
-//     if ($point_and_reward) {
-//         // Get the user ID from the order
-//         $order = wc_get_order($order_id);
-//         $user_id = $order->get_customer_id();
-
-//         // Check if points for this order have already been saved
-//         $points_saved = get_post_meta($order_id, '_points_saved', true);
-//         if ($points_saved) {
-//             return;
-//         }
-
-//         // Get the assign point type
-//         $assign_point_type = get_option('assign_point_type', 'all_products');
-
-//         // Calculate the points earned for the purchase
-//         $points = 0;
-//         switch ($assign_point_type) {
-//             case 'all_products':
-//                 // Earn points on all products
-//                 $points = calculate_points_for_purchase($order_id);
-//                 break;
-//             case 'category':
-//                 // Earn points on selected categories
-//                 $categories = get_option('assign_product_category', array());
-//                 $excluded_products = get_option('exclude_specific_products', array());
-//                 $points = calculate_points_for_purchase_by_category($order_id, $categories, $excluded_products);
-//                 break;
-//             case 'specific_products':
-//                 // Earn points on selected products
-//                 $products = get_option('assign_specific_products', array());
-//                 $points = calculate_points_for_purchase_by_product($order_id, $products);
-//                 break;
-//         }
-
-//         // Save the points to the custom table
-//         if ($points != 0) {
-//             add_point_log_entry($user_id, $points, 'purchase', '', $order_id);
-//         }
-
-//         // Mark the points as saved for this order
-//         update_post_meta($order_id, '_points_saved', true);
-//     }
-// }
 
 add_action('woocommerce_order_status_processing', 'handle_points_for_purchase');
 /**
@@ -2623,54 +2580,6 @@ function handle_points_for_purchase($order_id) {
         update_post_meta($order_id, '_points_saved', true);
     }
 }
-
-
-
-// function calculate_points_for_purchase_by_category($order_id, $categories, $excluded_products) {
-//     // Calculate the points based on the order total and categories
-//     $order = wc_get_order($order_id);
-//     $items = $order->get_items();
-
-//     $points = 0;
-//     foreach ($items as $item) {
-//         $product_id = $item->get_product_id();
-//         $product = wc_get_product($product_id);
-//         $product_categories = wp_get_post_terms($product_id, 'product_cat');
-
-//         // Check if the product belongs to the selected categories and is not excluded
-//         if (in_array($product_id, $excluded_products)) {
-//             continue; // Skip the excluded product
-//         }
-
-//         foreach ($product_categories as $category) {
-//             if (in_array($category->term_id, $categories)) {
-//                 $points += calculate_points_for_purchase($order_id);
-//                 break; // No need to check other categories
-//             }
-//         }
-//     }
-
-//     // Return the calculated points
-//     return $points;
-// }
-
-// function calculate_points_for_purchase_by_product($order_id, $products) {
-//     // Calculate the points based on the order total and products
-//     $order = wc_get_order($order_id);
-//     $items = $order->get_items();
-
-//     $points = 0;
-//     foreach ($items as $item) {
-//         $product_id = $item->get_product_id();
-
-//         if (in_array($product_id, $products)) {
-//             $points += calculate_points_for_purchase($order_id);
-//         }
-//     }
-
-//     // Return the calculated points
-//     return $points;
-// }
 
 
 
