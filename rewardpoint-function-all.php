@@ -2543,8 +2543,6 @@ add_action('init', 'register_dynamic_order_status_hook');
 
 
 add_action("woocommerce_order_status_{$status_hook}", 'handle_points_for_purchase');
-
-//add_action('woocommerce_order_status_processing', 'handle_points_for_purchase');
 /**
  * Function to handle points calculation and saving after a purchase
  *
@@ -2562,9 +2560,6 @@ function handle_points_for_purchase($order_id) {
 
         // Get the order object
         $order = wc_get_order($order_id);
-
-        // Get the order total
-        $order_total = floatval($order->get_total());
 
         // Retrieve the conversion rates
         $point_conversation_rate_point = get_option('point_conversation_rate_point', '');
@@ -2614,9 +2609,8 @@ function handle_points_for_purchase($order_id) {
 
                 // Calculate points earned for the product based on its price
                 $product_price = floatval($item->get_total()); // Total price for the quantity
-                $quantity = $item->get_quantity();
                 $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
-                $points += $points_earned * $quantity;
+                $points += $points_earned; // Fix: Removed incorrect multiplication by quantity
             }
         }
 
@@ -3290,7 +3284,7 @@ function add_custom_order_totals_row($points_total, $order, $tax_display) {
                 continue; // Skip the excluded product
             }
 
-            // Handle point assignment based on the configured method
+            // Handle point assignment based on the configured method (all products, category, specific products)
             if ($assign_point_type !== 'all_products') {
                 if ($assign_point_type === 'category') {
                     $categories = get_option('assign_product_category', array());
@@ -3315,9 +3309,8 @@ function add_custom_order_totals_row($points_total, $order, $tax_display) {
 
             // Calculate points earned for the product based on its price
             $product_price = floatval($item->get_total()); // Total price for the quantity
-            $quantity = $item->get_quantity();
             $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
-            $points += $points_earned * $quantity;
+            $points += $points_earned; // Fix: Removed incorrect multiplication by quantity
         }
     }
 
@@ -3696,7 +3689,7 @@ function modify_thankyou_order_received_text($text, $order)
                     continue; // Skip the excluded product
                 }
 
-                // Handle point assignment based on the configured method
+                // Handle point assignment based on the configured method (all products, category, specific products)
                 if ($assign_point_type !== 'all_products') {
                     if ($assign_point_type === 'category') {
                         $categories = get_option('assign_product_category', array());
@@ -3721,9 +3714,8 @@ function modify_thankyou_order_received_text($text, $order)
 
                 // Calculate points earned for the product based on its price
                 $product_price = floatval($item->get_total()); // Total price for the quantity
-                $quantity = $item->get_quantity();
                 $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
-                $points += $points_earned * $quantity;
+                $points += $points_earned; // Fix: Removed incorrect multiplication by quantity
             }
         }
 
@@ -3732,7 +3724,8 @@ function modify_thankyou_order_received_text($text, $order)
             if ($saved_status === 'wc-completed') {
                 $modified_text = 'Thank you. Your order has been received. You will earn <strong>' . $points . '</strong> points after completing this order.';
             } elseif ($saved_status === 'wc-processing') {
-                $modified_text = 'Thank you. Your order has been received. You have earned <strong>' . $points . '</strong> points from this order.';
+                $modified_text = 'Thank you. Your order has been received and you have earned <strong>' . $points . '</strong> points from this order.';
+                //$modified_text = 'Thank you. Your order has been received. You have earned <strong>' .'price: '. $product_price .'qty: '. $quantity .'Point earned: '. $points . '</strong> points from this order.';
             } else {
                 $modified_text = 'Thank you. Your order has been received.';
             }
