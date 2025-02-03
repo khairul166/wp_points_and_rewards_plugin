@@ -2377,6 +2377,11 @@ function save_points_to_database($user_id, $points, $reason = '', $point_source 
  */
 // Display total points earned on the cart page after the order total
 function display_total_points_earned_cart() {
+    // Ensure WooCommerce is initialized
+    if (!function_exists('WC') || !WC()->cart) {
+        return;
+    }
+
     // Get the current user ID
     $user_id = get_current_user_id();
     if (!$user_id) {
@@ -2389,9 +2394,6 @@ function display_total_points_earned_cart() {
     // Retrieve the conversion rates
     $point_conversation_rate_point = get_option('point_conversation_rate_point', '');
     $point_conversation_rate_taka = get_option('point_conversation_rate_taka', '');
-
-    // Remove the currency symbol from the cart total
-    $cart_total = floatval(str_replace(get_woocommerce_currency_symbol(), '', $cart_total));
 
     // Initialize total points earned
     $total_points_earned = 0;
@@ -2412,40 +2414,34 @@ function display_total_points_earned_cart() {
                 continue; // Skip the excluded product
             }
 
-            // If assign point type is 'all_products', skip the category and specific product checks
-            if ($assign_point_type === 'all_products') {
-                // All products are eligible, proceed to calculate points
-            } else {
-                // If assign point type is 'category', check if the product belongs to the selected category
-                if ($assign_point_type === 'category') {
-                    $categories = get_option('assign_product_category', array());
-                    $product_categories = wp_get_post_terms($product_id, 'product_cat');
-                    $category_match = false;
-                    foreach ($product_categories as $category) {
-                        if (in_array($category->term_id, $categories)) {
-                            $category_match = true;
-                            break;
-                        }
-                    }
-                    if (!$category_match) {
-                        continue; // Skip the product if it doesn't belong to the selected category
+            // If assign point type is 'category', check if the product belongs to the selected category
+            if ($assign_point_type === 'category') {
+                $categories = get_option('assign_product_category', array());
+                $product_categories = wp_get_post_terms($product_id, 'product_cat');
+                $category_match = false;
+                foreach ($product_categories as $category) {
+                    if (in_array($category->term_id, $categories)) {
+                        $category_match = true;
+                        break;
                     }
                 }
-                // If assign point type is 'specific_products', check if the product is in the selected list
-                elseif ($assign_point_type === 'specific_products') {
-                    $specific_products = get_option('assign_specific_products', array());
-                    if (!in_array($product_id, $specific_products)) {
-                        continue; // Skip the product if it's not in the selected specific products
-                    }
+                if (!$category_match) {
+                    continue; // Skip the product if it doesn't belong to the selected category
+                }
+            }
+            // If assign point type is 'specific_products', check if the product is in the selected list
+            elseif ($assign_point_type === 'specific_products') {
+                $specific_products = get_option('assign_specific_products', array());
+                if (!in_array($product_id, $specific_products)) {
+                    continue; // Skip the product if it's not in the selected specific products
                 }
             }
 
             // Calculate the points earned for the product
-            $product_price = $product->get_price();
+            $product_price = floatval($product->get_price());
             $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
             $quantity = $cart_item['quantity'];
             $total_points_earned += $points_earned * $quantity;
-            //$total_points_earned += $points_earned;
         }
     }
 
@@ -2454,11 +2450,15 @@ function display_total_points_earned_cart() {
         echo '<tr class="points-earned"><th>' . __('Total Points will Earn:', 'your-theme-textdomain') . '</th><td><strong>' . esc_html($total_points_earned) . ' Points </strong></td></tr>';
     }
 }
+
+// Ensure the feature is enabled before adding hooks
 $point_and_reward = get_option('point_and_reward', 0);
 if ($point_and_reward) {
-    add_action('woocommerce_cart_totals_after_order_total', 'display_total_points_earned_cart');
-    add_action('woocommerce_review_order_after_order_total', 'display_total_points_earned_cart');
+    add_action('woocommerce_cart_totals_before_order_total', 'display_total_points_earned_cart'); // For cart page
+    add_action('woocommerce_cart_totals_after_order_total', 'display_total_points_earned_cart');  // For checkout cart totals
+    add_action('woocommerce_review_order_after_order_total', 'display_total_points_earned_cart'); // For checkout page
 }
+
 
 
 
@@ -2971,83 +2971,96 @@ function points_page_callback()
  * @param array $atts Shortcode attributes
  * @return string Points earned HTML output
  */
-function display_product_points_earned($atts)
-{
-    $atts = shortcode_atts(
-        array(
-            'product_id' => '',
-        ),
-        $atts
-    );
-
-    // Retrieve the product ID from the shortcode attribute
+function display_product_points_earned($atts) {
+    $atts = shortcode_atts(array('product_id' => ''), $atts);
     $product_id = $atts['product_id'];
 
     // Get the product object
     $product = wc_get_product($product_id);
-
-    // Check if the product exists and is purchasable
-    if ($product && $product->is_purchasable()) {
-        // Get the assign point type
-        $assign_point_type = get_option('assign_point_type', 'all_products');
-
-        // Check if the product is excluded
-        $excluded_products = get_option('exclude_specific_products', array());
-        if (in_array($product_id, $excluded_products)) {
-            return ''; // Return empty string if the product is excluded
-        }
-
-        // If assign point type is 'all_products', skip the category and specific product checks
-        if ($assign_point_type === 'all_products') {
-            // All products are eligible, proceed to calculate points
-        } else {
-            // If assign point type is 'category', check if the product belongs to the selected category
-            if ($assign_point_type === 'category') {
-                $categories = get_option('assign_product_category', array());
-                $product_categories = wp_get_post_terms($product_id, 'product_cat');
-                $category_match = false;
-                foreach ($product_categories as $category) {
-                    if (in_array($category->term_id, $categories)) {
-                        $category_match = true;
-                        break;
-                    }
-                }
-                if (!$category_match) {
-                    return ''; // Return empty string if the product does not belong to the selected category
-                }
-            }
-            // If assign point type is 'specific_products', check if the product is in the selected list
-            elseif ($assign_point_type === 'specific_products') {
-                $specific_products = get_option('assign_specific_products', array());
-                if (!in_array($product_id, $specific_products)) {
-                    return ''; // Return empty string if the product is not in the selected specific products
-                }
-            }
-        }
-
-        // Retrieve the product price
-        $product_price = $product->get_price();
-
-        // Calculate the points earned based on the product price and conversion rate
-        $point_conversation_rate_point = get_option('point_conversation_rate_point', '');
-        $point_conversation_rate_taka = get_option('point_conversation_rate_taka', '');
-        $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
-
-        // Prepare the HTML output
-        $output = '<p class="woocommerce-noreviews">You will earn ' . esc_html($points_earned) . ' points on this product.</p>';
-
-        return $output;
+    if (!$product || !$product->is_purchasable()) {
+        return ''; // Return nothing if not a valid product
     }
 
-    return ''; // Return empty string if the product doesn't exist or is not purchasable
+    // Check for excluded products
+    $excluded_products = get_option('exclude_specific_products', array());
+    if (in_array($product_id, $excluded_products)) {
+        return '';
+    }
+
+    // Get the assign point type
+    $assign_point_type = get_option('assign_point_type', 'all_products');
+
+    // If the assign point type is 'category' or 'specific_products', check conditions
+    if ($assign_point_type !== 'all_products') {
+        if ($assign_point_type === 'category') {
+            $categories = get_option('assign_product_category', array());
+            $product_categories = wp_get_post_terms($product_id, 'product_cat');
+            $category_match = false;
+            foreach ($product_categories as $category) {
+                if (in_array($category->term_id, $categories)) {
+                    $category_match = true;
+                    break;
+                }
+            }
+            if (!$category_match) {
+                return ''; // Skip if the product does not belong to the selected category
+            }
+        } elseif ($assign_point_type === 'specific_products') {
+            $specific_products = get_option('assign_specific_products', array());
+            if (!in_array($product_id, $specific_products)) {
+                return ''; // Skip if the product is not in the assigned specific products
+            }
+        }
+    }
+
+    // Retrieve point conversion settings
+    $point_conversation_rate_point = get_option('point_conversation_rate_point', 1);
+    $point_conversation_rate_taka = get_option('point_conversation_rate_taka', 1);
+
+    // Ensure valid conversion rates
+    if ($point_conversation_rate_point == 0 || $point_conversation_rate_taka == 0) {
+        return '';
+    }
+
+    // Retrieve the product price based on total price for quantity
+    $product_price = floatval($product->get_price());
+
+    // Calculate earned points correctly based on the total price
+    $points_earned = round(($product_price * $point_conversation_rate_point) / $point_conversation_rate_taka);
+
+    // Return badge content
+    return '<span class="points-badge-text">' . esc_html($points_earned) . ' Points</span>';
 }
 
-// Check if points and rewards are enabled
-$point_and_reward = get_option('point_and_reward', 0);
-if ($point_and_reward) {
+// Register shortcode
+if (get_option('point_and_reward', 0)) {
     add_shortcode('product_points_earned', 'display_product_points_earned');
 }
 
+
+/**
+ * Function to display points as a badge on the shop and product pages
+ */
+function shop_page_product_text() {
+    $product_id = get_the_ID();
+    if (!$product_id) {
+        return;
+    }
+
+    // Generate shortcode output
+    $points_earned = do_shortcode('[product_points_earned product_id="' . esc_attr($product_id) . '"]');
+
+    // Display the badge only if points exist
+    if (!empty($points_earned)) {
+        echo '<div class="points-badge">' . $points_earned . '</div>';
+    }
+}
+
+// Hooks to display badge on shop and product pages
+if (get_option('point_massage', 0) && get_option('point_and_reward', 0)) {
+    add_action('woocommerce_before_shop_loop_item_title', 'shop_page_product_text'); // Shop page (Before product title)
+    add_action('woocommerce_before_single_product', 'shop_page_product_text'); // Product page
+}
 
 
 
@@ -4012,20 +4025,5 @@ function apply_points_box_on_checkout(){ ?>
     <?php
 }
 add_action('woocommerce_review_order_before_payment', 'apply_points_box_on_checkout');
-
-
-function shop_page_product_text(){
-    global $product;
-
-    // Output the shortcode for the current product using its ID
-    echo do_shortcode('[product_points_earned product_id="' . $product->get_id() . '"]');
-}
-$point_massage = get_option('point_massage', 0);
-$point_and_reward = get_option('point_and_reward', 0);
-if($point_massage && $point_and_reward){
-    add_action('woocommerce_after_shop_loop_item_title', 'shop_page_product_text');
-    add_action('woocommerce_before_add_to_cart_form', 'shop_page_product_text');
-}
-
 
 ?>

@@ -119,3 +119,27 @@
 .points-redemption-checkout input{
     width: 69%;
 }
+
+.points-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #ff0000;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 5px;
+    border-radius: 5px;
+    z-index: 10;
+}
+
+.woocommerce ul.products li.product {
+    position: relative; /* Ensure badge positions correctly */
+}
+
+.points-badge-text {
+    display: block;
+    text-align: center;
+}
+
+
